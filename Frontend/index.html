@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stock Price Prediction Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f6f9;
+}
+
+.header {
+    background: #1e1e2f;
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h2 {
+    margin: 0;
+}
+
+.price-box {
+    display: flex;
+    gap: 30px;
+}
+
+.price-card {
+    background: #2c2c44;
+    padding: 15px 20px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.price-card span {
+    display: block;
+    font-size: 14px;
+    color: #ccc;
+}
+
+.price-card strong {
+    font-size: 22px;
+}
+
+.controls {
+    padding: 15px;
+    background: white;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.controls input {
+    padding: 8px;
+    font-size: 14px;
+}
+
+.controls button {
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    background: #1e88e5;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+
+.container {
+    padding: 20px;
+}
+
+.chart-box {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <h2 id="stockName">Stock Dashboard</h2>
+    <div class="price-box">
+        <div class="price-card">
+            <span>Today's Close</span>
+            <strong id="todayClose">--</strong>
+        </div>
+        <div class="price-card">
+            <span>Predicted Tomorrow</span>
+            <strong id="predictedClose">--</strong>
+        </div>
+    </div>
+</div>
+
+<!-- CONTROLS -->
+<div class="controls">
+    <input id="symbol" value="RELIANCE.NS" placeholder="Stock Symbol">
+    <input id="keyword" value="Reliance Industries" placeholder="Company Keyword">
+    <button onclick="runPrediction()">Predict</button>
+</div>
+
+<!-- CHARTS -->
+<div class="container">
+    <div class="chart-box">
+        <canvas id="priceChart"></canvas>
+    </div>
+
+    <div class="chart-box">
+        <canvas id="sentimentChart"></canvas>
+    </div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:8000/api";
+
+let priceChart, sentimentChart;
+
+async function runPrediction() {
+    const symbol = document.getElementById("symbol").value;
+    const keyword = document.getElementById("keyword").value;
+
+    document.getElementById("stockName").innerText = symbol;
+
+    // ---- 1) PREDICT ----
+    const predResp = await fetch(`${API_BASE}/predict`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({symbol, company_keyword: keyword})
+    });
+    const predData = await predResp.json();
+
+    if (!predData.success) {
+        alert("Prediction failed");
+        return;
+    }
+
+    document.getElementById("todayClose").innerText =
+        predData.result.last_close.toFixed(2);
+
+    document.getElementById("predictedClose").innerText =
+        predData.result.predicted_next_close.toFixed(2);
+
+    // ---- 2) HISTORY FOR GRAPHS ----
+    const histResp = await fetch(`${API_BASE}/history/${symbol}?company_keyword=${keyword}&period=2y`);
+    const histData = await histResp.json();
+
+    drawCharts(histData.data);
+}
+
+function drawCharts(data) {
+    const dates = data.map(d => d.date.split("T")[0]);
+    const closePrices = data.map(d => d.Close);
+    const sentiment = data.map(d => d.sent_1d_avg || 0);
+
+    // ----- PRICE CHART -----
+    if (priceChart) priceChart.destroy();
+    priceChart = new Chart(document.getElementById("priceChart"), {
+        type: "line",
+        data: {
+            labels: dates,
+            datasets: [{
+                label: "Close Price",
+                data: closePrices,
+                borderColor: "#1e88e5",
+                borderWidth: 2,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: true } }
+        }
+    });
+
+    // ----- SENTIMENT CHART -----
+    if (sentimentChart) sentimentChart.destroy();
+    sentimentChart = new Chart(document.getElementById("sentimentChart"), {
+        type: "line",
+        data: {
+            labels: dates,
+            datasets: [{
+                label: "Sentiment (1d Avg)",
+                data: sentiment,
+                borderColor: "#43a047",
+                borderWidth: 2,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    min: -1,
+                    max: 1
+                }
+            }
+        }
+    });
+}
+</script>
+
+</body>
+</html>
