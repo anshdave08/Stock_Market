@@ -1,10 +1,11 @@
 # backend/app/api.py
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.predictor import predict_next, prepare_full_df
+from app.predictor import predict_next, prepare_full_df, predict_historical
 from app.trainer import train_and_save, prepare_dataset
 from app.predictor import FEATURES
 import joblib
+import os
 from app.config import MODEL_PATH
 import traceback
 
@@ -45,8 +46,20 @@ def history(symbol: str, company_keyword: str = None, period: str = "2y"):
     try:
         company_keyword = company_keyword or symbol.split('.')[0]
         df = prepare_full_df(symbol, company_keyword, period=period)
+        
+        # Generate historical predictions
+        model = joblib.load(MODEL_PATH) if os.path.exists(MODEL_PATH) else None
+        if model is not None:
+            predictions = predict_historical(df, model)
+            df['predicted_close'] = predictions
+        else:
+            df['predicted_close'] = df['Close']  # Fallback if no model
+        
         # reduce to JSON-friendly types
         df2 = df.reset_index().rename(columns={'index':'date'})
+        # Convert date column to string format for JSON serialization
+        if 'date' in df2.columns:
+            df2['date'] = df2['date'].astype(str)
         return {"success": True, "data": df2.to_dict(orient="records")}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

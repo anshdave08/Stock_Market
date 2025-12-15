@@ -1,211 +1,336 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<title>Stock Price Prediction Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <title>Stock Price Prediction Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<style>
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #f4f6f9;
-}
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+        }
 
-.header {
-    background: #1e1e2f;
-    color: white;
-    padding: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+        .header {
+            background: #1e1e2f;
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-.header h2 {
-    margin: 0;
-}
+        .header h2 {
+            margin: 0;
+        }
 
-.price-box {
-    display: flex;
-    gap: 30px;
-}
+        .price-box {
+            display: flex;
+            gap: 30px;
+        }
 
-.price-card {
-    background: #2c2c44;
-    padding: 15px 20px;
-    border-radius: 8px;
-    text-align: center;
-}
+        .price-card {
+            background: #2c2c44;
+            padding: 15px 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
 
-.price-card span {
-    display: block;
-    font-size: 14px;
-    color: #ccc;
-}
+        .price-card span {
+            display: block;
+            font-size: 14px;
+            color: #ccc;
+        }
 
-.price-card strong {
-    font-size: 22px;
-}
+        .price-card strong {
+            font-size: 22px;
+        }
 
-.controls {
-    padding: 15px;
-    background: white;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
+        .controls {
+            padding: 15px;
+            background: white;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
 
-.controls input {
-    padding: 8px;
-    font-size: 14px;
-}
+        .controls input {
+            padding: 8px;
+            font-size: 14px;
+        }
 
-.controls button {
-    padding: 8px 16px;
-    font-size: 14px;
-    cursor: pointer;
-    background: #1e88e5;
-    color: white;
-    border: none;
-    border-radius: 4px;
-}
+        .controls button {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #1e88e5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
 
-.container {
-    padding: 20px;
-}
+        .container {
+            padding: 20px;
+        }
 
-.chart-box {
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-}
-</style>
+        .chart-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 
 <body>
 
-<!-- HEADER -->
-<div class="header">
-    <h2 id="stockName">Stock Dashboard</h2>
-    <div class="price-box">
-        <div class="price-card">
-            <span>Today's Close</span>
-            <strong id="todayClose">--</strong>
+    <!-- HEADER -->
+    <div class="header">
+        <h2 id="stockName">Stock Dashboard</h2>
+        <div class="price-box">
+            <div class="price-card">
+                <span>Today's Close</span>
+                <strong id="todayClose">--</strong>
+            </div>
+            <div class="price-card">
+                <span>Predicted Tomorrow</span>
+                <strong id="predictedClose">--</strong>
+            </div>
         </div>
-        <div class="price-card">
-            <span>Predicted Tomorrow</span>
-            <strong id="predictedClose">--</strong>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls">
+        <input id="symbol" value="RELIANCE.NS" placeholder="Stock Symbol">
+        <input id="keyword" value="Reliance Industries" placeholder="Company Keyword">
+        <button onclick="runPrediction()">Predict</button>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="container">
+        <div class="chart-box">
+            <canvas id="priceChart"></canvas>
+        </div>
+
+        <div class="chart-box">
+            <canvas id="sentimentChart"></canvas>
         </div>
     </div>
-</div>
 
-<!-- CONTROLS -->
-<div class="controls">
-    <input id="symbol" value="RELIANCE.NS" placeholder="Stock Symbol">
-    <input id="keyword" value="Reliance Industries" placeholder="Company Keyword">
-    <button onclick="runPrediction()">Predict</button>
-</div>
+    <script>
+        const API_BASE = "http://localhost:8000/api";
 
-<!-- CHARTS -->
-<div class="container">
-    <div class="chart-box">
-        <canvas id="priceChart"></canvas>
-    </div>
+        let priceChart, sentimentChart;
 
-    <div class="chart-box">
-        <canvas id="sentimentChart"></canvas>
-    </div>
-</div>
-
-<script>
-const API_BASE = "http://localhost:8000/api";
-
-let priceChart, sentimentChart;
-
-async function runPrediction() {
-    const symbol = document.getElementById("symbol").value;
-    const keyword = document.getElementById("keyword").value;
-
-    document.getElementById("stockName").innerText = symbol;
-
-    // ---- 1) PREDICT ----
-    const predResp = await fetch(`${API_BASE}/predict`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({symbol, company_keyword: keyword})
-    });
-    const predData = await predResp.json();
-
-    if (!predData.success) {
-        alert("Prediction failed");
-        return;
-    }
-
-    document.getElementById("todayClose").innerText =
-        predData.result.last_close.toFixed(2);
-
-    document.getElementById("predictedClose").innerText =
-        predData.result.predicted_next_close.toFixed(2);
-
-    // ---- 2) HISTORY FOR GRAPHS ----
-    const histResp = await fetch(`${API_BASE}/history/${symbol}?company_keyword=${keyword}&period=2y`);
-    const histData = await histResp.json();
-
-    drawCharts(histData.data);
-}
-
-function drawCharts(data) {
-    const dates = data.map(d => d.date.split("T")[0]);
-    const closePrices = data.map(d => d.Close);
-    const sentiment = data.map(d => d.sent_1d_avg || 0);
-
-    // ----- PRICE CHART -----
-    if (priceChart) priceChart.destroy();
-    priceChart = new Chart(document.getElementById("priceChart"), {
-        type: "line",
-        data: {
-            labels: dates,
-            datasets: [{
-                label: "Close Price",
-                data: closePrices,
-                borderColor: "#1e88e5",
-                borderWidth: 2,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: true } }
-        }
-    });
-
-    // ----- SENTIMENT CHART -----
-    if (sentimentChart) sentimentChart.destroy();
-    sentimentChart = new Chart(document.getElementById("sentimentChart"), {
-        type: "line",
-        data: {
-            labels: dates,
-            datasets: [{
-                label: "Sentiment (1d Avg)",
-                data: sentiment,
-                borderColor: "#43a047",
-                borderWidth: 2,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    min: -1,
-                    max: 1
+        // Test backend connection on page load
+        async function testConnection() {
+            try {
+                const resp = await fetch("http://localhost:8000/health");
+                if (resp.ok) {
+                    console.log("✓ Backend connection successful");
+                } else {
+                    console.warn("⚠ Backend health check returned:", resp.status);
                 }
+            } catch (error) {
+                console.error("✗ Cannot connect to backend:", error.message);
+                console.log("Make sure the backend server is running:");
+                console.log("  Windows: cd Backend && python run_server.py");
+                console.log("  Linux/Mac: cd Backend && python3 run_server.py");
+                console.log("  Or: cd Backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000");
             }
         }
-    });
-}
-</script>
+
+        // Test connection when page loads
+        window.addEventListener("DOMContentLoaded", testConnection);
+
+        async function runPrediction() {
+            const symbol = document.getElementById("symbol").value;
+            const keyword = document.getElementById("keyword").value;
+
+            if (!symbol) {
+                alert("Please enter a stock symbol");
+                return;
+            }
+
+            document.getElementById("stockName").innerText = symbol;
+
+            // Show loading state
+            document.getElementById("todayClose").innerText = "Loading...";
+            document.getElementById("predictedClose").innerText = "Loading...";
+
+            try {
+                // ---- 1) PREDICT ----
+                const predResp = await fetch(`${API_BASE}/predict`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ symbol, company_keyword: keyword })
+                });
+
+                if (!predResp.ok) {
+                    const errorText = await predResp.text();
+                    throw new Error(`Prediction request failed: ${predResp.status} ${errorText}`);
+                }
+
+                const predData = await predResp.json();
+
+                if (!predData.success) {
+                    throw new Error(predData.detail || "Prediction failed");
+                }
+
+                document.getElementById("todayClose").innerText =
+                    predData.result.last_close.toFixed(2);
+
+                document.getElementById("predictedClose").innerText =
+                    predData.result.predicted_next_close.toFixed(2);
+
+                // ---- 2) HISTORY FOR GRAPHS ----
+                const encodedKeyword = encodeURIComponent(keyword);
+                const histResp = await fetch(`${API_BASE}/history/${encodeURIComponent(symbol)}?company_keyword=${encodedKeyword}&period=2y`);
+
+                if (!histResp.ok) {
+                    const errorText = await histResp.text();
+                    throw new Error(`History request failed: ${histResp.status} ${errorText}`);
+                }
+
+                const histData = await histResp.json();
+
+                if (!histData.success) {
+                    throw new Error(histData.detail || "Failed to fetch history");
+                }
+
+                // Pass both historical data and next prediction to chart
+                drawCharts(histData.data, predData.result);
+            } catch (error) {
+                console.error("Error:", error);
+                alert(`Error: ${error.message}\n\nMake sure the backend server is running on http://localhost:8000`);
+                document.getElementById("todayClose").innerText = "--";
+                document.getElementById("predictedClose").innerText = "--";
+            }
+        }
+
+        function drawCharts(data, nextPrediction = null) {
+            if (!data || data.length === 0) {
+                console.warn("No data provided to drawCharts");
+                return;
+            }
+
+            // Safely format dates - handle string, Date object, or timestamp
+            const dates = data.map(d => {
+                if (!d.date) return "N/A";
+                const dateStr = typeof d.date === 'string'
+                    ? d.date
+                    : (d.date instanceof Date
+                        ? d.date.toISOString()
+                        : new Date(d.date).toISOString());
+                return dateStr.split("T")[0];
+            });
+            const closePrices = data.map(d => d.Close || 0);
+            const predictedPrices = data.map(d => d.predicted_close || d.Close || 0);
+            const sentiment = data.map(d => d.sent_1d_avg || 0);
+
+            // Prepare chart labels and data
+            let chartDates = [...dates];
+            let chartActualPrices = [...closePrices];
+            let chartPredictedPrices = [...predictedPrices];
+
+            // Add next day prediction if available
+            if (nextPrediction && nextPrediction.predicted_date) {
+                chartDates.push(nextPrediction.predicted_date);
+                chartActualPrices.push(null); // No actual value for future
+                chartPredictedPrices.push(nextPrediction.predicted_next_close);
+            }
+
+            // ----- PRICE CHART -----
+            if (priceChart) priceChart.destroy();
+            priceChart = new Chart(document.getElementById("priceChart"), {
+                type: "line",
+                data: {
+                    labels: chartDates,
+                    datasets: [
+                        {
+                            label: "Actual Close Price",
+                            data: chartActualPrices,
+                            borderColor: "#1e88e5",
+                            backgroundColor: "rgba(30, 136, 229, 0.1)",
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1
+                        },
+                        {
+                            label: "Predicted Price",
+                            data: chartPredictedPrices,
+                            borderColor: "#ff9800",
+                            backgroundColor: "rgba(255, 152, 0, 0.1)",
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: nextPrediction ? [...Array(chartPredictedPrices.length - 1).fill(0), 6] : 0,
+                            pointBorderColor: nextPrediction ? "#fff" : undefined,
+                            pointBorderWidth: nextPrediction ? 2 : undefined,
+                            pointBackgroundColor: nextPrediction ? "#ff5722" : undefined,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Price'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // ----- SENTIMENT CHART -----
+            if (sentimentChart) sentimentChart.destroy();
+            sentimentChart = new Chart(document.getElementById("sentimentChart"), {
+                type: "line",
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: "Sentiment (1d Avg)",
+                        data: sentiment,
+                        borderColor: "#43a047",
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            min: -1,
+                            max: 1
+                        }
+                    }
+                }
+            });
+        }
+    </script>
 
 </body>
+
 </html>
