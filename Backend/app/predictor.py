@@ -1,5 +1,6 @@
 # backend/app/predictor.py
 import joblib, os, numpy as np
+import pandas as pd
 from app.config import MODEL_PATH
 from app.fetcher import fetch_daily_yfinance
 from app.feature import create_technical_features
@@ -26,6 +27,23 @@ def prepare_full_df(symbol, company_keyword, lookbacks=[1,2], period="3y"):
     df_tech = create_technical_features(df)
     df_with_sent = add_batch_sentiment(df_tech, company_keyword, lookbacks=lookbacks)
     return df_with_sent
+
+def predict_historical(df_with_sent, model=None):
+    """Generate predictions for historical data to compare with actual values"""
+    if model is None:
+        model = load_model()
+    
+    predictions = []
+    for idx in range(len(df_with_sent)):
+        row = df_with_sent.iloc[idx].copy()
+        for f in FEATURES:
+            if f not in row.index:
+                row[f] = 0.0
+        X_row = pd.DataFrame([row[FEATURES].values], columns=FEATURES)
+        pred = float(model.predict(X_row)[0])
+        predictions.append(pred)
+    
+    return predictions
 
 def predict_next(symbol, company_keyword, model=None):
     df_with_sent = prepare_full_df(symbol, company_keyword)
