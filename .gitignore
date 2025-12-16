@@ -3,7 +3,7 @@ venv/
 .venv/
 Backend/venv/
 Backend/.venv/
-
+Backend/sent_cache/
 # Python cache
 __pycache__/
 *.pyc
